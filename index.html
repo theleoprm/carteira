@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carteira</title>
+<style>
+  :root{
+    --ink:#0f1620; --surface:#161f2b; --surface-2:#1e2a38; --line:#2a3745;
+    --text:#e7ecf1; --text-dim:#93a3b5; --brass:#c9a35c; --pos:#4fae8f; --neg:#c1594a;
+    --radius:3px;
+    --font-head:'Iowan Old Style','Georgia',serif;
+    --font-body:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;
+    --font-num:'IBM Plex Mono','SFMono-Regular',Consolas,monospace;
+  }
+  @media (prefers-color-scheme: light){
+    :root:not([data-theme="dark"]){
+      --ink:#f5f3ee; --surface:#ffffff; --surface-2:#faf8f3; --line:#ddd6c8;
+      --text:#20242b; --text-dim:#6b6558; --brass:#9c7a34; --pos:#2f7d61; --neg:#a8402f;
+    }
+  }
+  *{box-sizing:border-box;}
+  body{margin:0; background:var(--ink); color:var(--text); font-family:var(--font-body); min-height:100vh; padding:28px 18px 80px;}
+  .wrap{max-width:960px; margin:0 auto;}
+  header{margin-bottom:18px;}
+  h1{font-family:var(--font-head); font-weight:400; font-size:2rem; margin:0 0 4px; letter-spacing:.2px;}
+  header p{color:var(--text-dim); margin:0; font-size:.92rem;}
+
+  .envs{display:flex; gap:2px; margin-bottom:26px; border-bottom:1px solid var(--line);}
+  .env-btn{background:none; border:none; color:var(--text-dim); padding:10px 4px; margin-right:22px; font-family:var(--font-body); font-size:.95rem; cursor:pointer; border-bottom:2px solid transparent;}
+  .env-btn.active{color:var(--text); border-bottom-color:var(--brass);}
+
+  .overview{display:grid; grid-template-columns:repeat(3,1fr); gap:1px; background:var(--line); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden; margin-bottom:22px;}
+  .card{background:var(--surface); padding:16px 18px;}
+  .card .label{font-size:.78rem; color:var(--text-dim); margin-bottom:6px;}
+  .card .value{font-family:var(--font-num); font-size:1.35rem;}
+  .card .sub{font-family:var(--font-num); font-size:.82rem; margin-top:3px;}
+  .pos{color:var(--pos);} .neg{color:var(--neg);}
+
+  .section-title{font-size:.78rem; color:var(--text-dim); margin:26px 0 10px; border-bottom:1px solid var(--line); padding-bottom:8px; display:flex; justify-content:space-between; align-items:baseline;}
+
+  .alloc-bar{display:flex; height:26px; border-radius:var(--radius); overflow:hidden; margin-bottom:10px;}
+  .alloc-seg{height:100%;}
+  .alloc-legend{display:flex; flex-wrap:wrap; gap:14px; font-size:.82rem; color:var(--text-dim); margin-bottom:8px;}
+  .alloc-legend span{display:inline-flex; align-items:center; gap:6px;}
+  .dot{width:8px; height:8px; border-radius:50%; display:inline-block;}
+
+  table{width:100%; border-collapse:collapse; font-size:.88rem;}
+  thead th{text-align:left; font-weight:400; color:var(--text-dim); font-size:.76rem; padding:6px 10px; border-bottom:1px solid var(--line);}
+  tbody td{padding:9px 10px; border-bottom:1px solid var(--line); font-family:var(--font-num); vertical-align:top;}
+  tbody td.name-cell{font-family:var(--font-body);}
+  .sub-note{display:block; font-size:.72rem; color:var(--text-dim); font-family:var(--font-body); margin-top:2px;}
+  tbody tr:hover{background:var(--surface);}
+  .icon-btn{background:none; border:none; color:var(--text-dim); cursor:pointer; font-size:.95rem; padding:2px 5px; border-radius:var(--radius);}
+  .icon-btn:hover{background:var(--surface-2); color:var(--text);}
+  .icon-btn.del:hover{color:var(--neg);}
+  .overflow-x{overflow-x:auto;}
+
+  .panel{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:16px 18px; margin-top:10px;}
+  .tabs{display:flex; gap:2px; margin-bottom:14px; flex-wrap:wrap;}
+  .tab{background:none; border:1px solid var(--line); color:var(--text-dim); padding:7px 14px; font-size:.82rem; cursor:pointer; border-radius:var(--radius); font-family:var(--font-body);}
+  .tab.active{background:var(--surface-2); color:var(--text); border-color:var(--brass);}
+
+  .form-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:10px;}
+  @media(max-width:520px){.form-grid{grid-template-columns:1fr;} .overview{grid-template-columns:1fr;}}
+  label{display:block; font-size:.76rem; color:var(--text-dim); margin-bottom:4px;}
+  input,select,textarea{width:100%; background:var(--ink); border:1px solid var(--line); color:var(--text); padding:8px 10px; border-radius:var(--radius); font-family:var(--font-body); font-size:.88rem;}
+  textarea{font-family:var(--font-num); min-height:110px; resize:vertical;}
+  .hint{font-size:.76rem; color:var(--text-dim); margin-top:6px; line-height:1.5;}
+  .btn{background:var(--brass); color:#1a1206; border:none; padding:9px 18px; border-radius:var(--radius); font-size:.86rem; cursor:pointer; margin-top:12px; font-family:var(--font-body); font-weight:600;}
+  .btn:hover{opacity:.9;}
+  .btn.secondary{background:none; border:1px solid var(--line); color:var(--text);}
+  .btn.small{padding:6px 12px; font-size:.78rem; margin-top:0;}
+  .msg{font-size:.82rem; margin-top:10px;}
+  .msg.ok{color:var(--pos);} .msg.err{color:var(--neg);}
+  .empty{color:var(--text-dim); font-size:.88rem; padding:24px 0; text-align:center;}
+  .status{font-size:.76rem; color:var(--text-dim); margin-top:24px; text-align:center;}
+
+  .review-item{border:1px solid var(--line); border-radius:var(--radius); padding:12px; margin-top:10px; background:var(--surface-2);}
+  .review-row{display:grid; grid-template-columns:1.3fr 1fr .8fr .9fr .9fr auto; gap:8px; align-items:end;}
+  @media(max-width:640px){.review-row{grid-template-columns:1fr 1fr;}}
+  .review-row label{margin-bottom:2px;}
+
+  .refs-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:10px;}
+  @media(max-width:520px){.refs-grid{grid-template-columns:1fr;}}
+  .toggle-link{background:none; border:none; color:var(--brass); font-size:.78rem; cursor:pointer; font-family:var(--font-body);}
+
+  #loginGate{max-width:340px; margin:15vh auto 0;}
+  #loginGate h1{text-align:center;}
+  #loginGate .panel{margin-top:20px;}
+  #appRoot{display:none;}
+  .top-actions{display:flex; justify-content:flex-end; margin-bottom:-14px;}
+  .top-actions button{background:none;border:none;color:var(--text-dim);font-size:.78rem;cursor:pointer;font-family:var(--font-body);}
+  .top-actions button:hover{color:var(--text);}
+</style>
+</head>
+<body>
+
+<div id="loginGate">
+  <div class="wrap">
+    <h1>Carteira</h1>
+    <div class="panel">
+      <div><label>E-mail</label><input id="lg-email" type="email" autocomplete="username"></div>
+      <div style="margin-top:10px;"><label>Senha</label><input id="lg-senha" type="password" autocomplete="current-password"></div>
+      <button class="btn" id="lgBtn" style="width:100%;">Entrar</button>
+      <div id="lgMsg" class="msg"></div>
+    </div>
+  </div>
+</div>
+
+<div id="appRoot">
+<div class="wrap">
+  <div class="top-actions"><button id="logoutBtn">Sair</button></div>
+  <header>
+    <h1>Carteira</h1>
+    <p>Painel pessoal de investimentos</p>
+  </header>
+
+  <div class="envs">
+    <button class="env-btn active" data-env="investimentos">Investimentos</button>
+    <button class="env-btn" data-env="reserva">Reserva de emergência</button>
+  </div>
+
+  <div class="overview" id="overview"></div>
+
+  <div class="section-title">Alocação por classe</div>
+  <div id="allocWrap"></div>
+
+  <div class="section-title">Alocação por setor</div>
+  <div id="sectorWrap"></div>
+
+  <div class="section-title">
+    <span>Índices de referência</span>
+    <button class="toggle-link" id="toggleRefs">editar</button>
+  </div>
+  <div class="panel" id="refsPanel" style="display:none;">
+    <div class="refs-grid">
+      <div><label>CDI (% a.a.)</label><input id="ref-cdi" type="number" step="any"></div>
+      <div><label>SELIC (% a.a.)</label><input id="ref-selic" type="number" step="any"></div>
+      <div><label>IPCA 12 meses (%)</label><input id="ref-ipca" type="number" step="any"></div>
+    </div>
+    <button class="btn small" id="saveRefsBtn">Salvar índices</button>
+    <div class="hint" id="refsUpdated"></div>
+    <div class="hint">Esses índices alimentam o cálculo automático da renda fixa. São atualizados sozinhos todo dia pela automação (GitHub Actions) — só mexa aqui se quiser corrigir manualmente.</div>
+  </div>
+
+  <div class="section-title">Ativos</div>
+  <div class="overflow-x">
+    <table id="assetTable">
+      <thead><tr><th>Ativo</th><th>Classe</th><th>Qtd</th><th>Aplicado / P.médio</th><th>Atual / P.atual</th><th>Valor</th><th>Resultado</th><th></th></tr></thead>
+      <tbody id="assetBody"></tbody>
+    </table>
+  </div>
+  <div id="emptyState" class="empty" style="display:none;">Nenhum ativo nesta carteira ainda.</div>
+
+  <div class="section-title">Boletim de fechamento</div>
+  <div class="panel" id="boletimPanel">
+    <div id="boletimContent" class="hint">Ainda não gerado.</div>
+  </div>
+
+  <div class="section-title">Dividendos</div>
+  <div class="overview" id="divOverview"></div>
+  <div class="overflow-x">
+    <table id="divTable">
+      <thead><tr><th>Ativo</th><th>Tipo</th><th>Data</th><th>Valor</th><th>Status</th><th></th></tr></thead>
+      <tbody id="divBody"></tbody>
+    </table>
+  </div>
+  <div id="divSugestoes"></div>
+  <div class="panel">
+    <div class="form-grid">
+      <div><label>Ativo</label><input id="dv-ativo" placeholder="BBAS3" list="known-assets-div"></div>
+      <datalist id="known-assets-div"></datalist>
+      <div><label>Tipo</label><select id="dv-tipo"><option>Dividendo</option><option>JCP</option></select></div>
+      <div><label>Valor total (R$)</label><input id="dv-valor" type="number" step="any"></div>
+      <div><label>Data</label><input id="dv-data" type="date"></div>
+      <div><label>Status</label><select id="dv-status"><option value="recebido">Recebido</option><option value="a receber">A receber</option></select></div>
+    </div>
+    <button class="btn small" id="dvBtn">Lançar dividendo</button>
+    <div id="dvMsg" class="msg"></div>
+    <div class="hint">Dividendos e JCP já pagos são detectados e lançados aqui automaticamente todo dia. Anúncios de pagamentos futuros aparecem como sugestão acima, aguardando sua confirmação.</div>
+  </div>
+
+  <div class="section-title">Movimentações</div>
+  <div class="overflow-x">
+    <table id="movTable">
+      <thead><tr><th>Data</th><th>Ativo</th><th>Tipo</th><th>Detalhes</th><th>Valor</th><th></th></tr></thead>
+      <tbody id="movBody"></tbody>
+    </table>
+  </div>
+  <div id="movEmptyState" class="empty" style="display:none;">Nenhuma movimentação registrada ainda.</div>
+  <div class="hint" style="margin-top:8px;">Histórico de tudo que acontece com os ativos: compras, vendas, dividendos, JCP e eventos societários (desdobramento, grupamento, bonificação). Eventos societários são verificados automaticamente todo dia; passam a valer a partir de agora — movimentações anteriores à migração não aparecem aqui.</div>
+
+  <div class="section-title">Movimentar</div>
+  <div class="panel">
+    <div class="tabs">
+      <button class="tab active" data-tab="mov">Registrar movimento</button>
+      <button class="tab" data-tab="carga">Carga inicial (colar lista)</button>
+    </div>
+
+    <div id="tab-mov">
+      <div class="form-grid">
+        <div><label>Tipo</label>
+          <select id="m-tipo"><option value="compra">Compra / aporte</option><option value="venda">Venda / resgate</option></select>
+        </div>
+        <div><label>Ticker / nome</label><input id="m-nome" placeholder="BBAS3" list="known-assets"></div>
+        <datalist id="known-assets"></datalist>
+        <div><label id="m-classe-label">Classe</label>
+          <select id="m-classe">
+            <option>Ação</option><option>FII</option><option>Renda Fixa</option>
+            <option>ETF</option><option>Cripto</option><option>Outro</option>
+          </select>
+        </div>
+        <div id="m-moeda-wrap"><label>Moeda</label>
+          <select id="m-moeda"><option value="BRL">R$ (Real)</option><option value="USD">US$ (Dólar)</option></select>
+        </div>
+        <div id="m-setor-wrap"><label>Setor (opcional)</label><input id="m-setor" placeholder="Bancário" list="known-sectors"></div>
+        <datalist id="known-sectors"></datalist>
+        <div><label id="m-qtd-label">Quantidade</label><input id="m-qtd" type="number" step="any" placeholder="10"></div>
+        <div id="m-preco-wrap"><label id="m-preco-label">Preço unitário (R$)</label><input id="m-preco" type="number" step="any" placeholder="27.10"></div>
+        <div id="rf-tipo-wrap" style="display:none;"><label>Indexador</label>
+          <select id="rf-tipo">
+            <option value="CDI">% do CDI</option>
+            <option value="SELIC">% da SELIC</option>
+            <option value="IPCA">IPCA + spread</option>
+            <option value="PRE">Prefixado</option>
+          </select>
+        </div>
+        <div id="rf-data-wrap" style="display:none;"><label>Data de aplicação</label><input id="rf-data" type="date"></div>
+        <div id="rf-vencimento-wrap" style="display:none;"><label>Data de vencimento (opcional)</label><input id="rf-vencimento" type="date"></div>
+      </div>
+      <button class="btn" id="movBtn">Registrar movimento</button>
+      <div id="movMsg" class="msg"></div>
+      <div class="hint" id="movHint">Compra: cria o ativo (se novo) ou atualiza quantidade e preço médio ponderado. Venda: reduz a quantidade mantendo o preço médio; remove o ativo se zerar.</div>
+    </div>
+
+    <div id="tab-carga" style="display:none;">
+      <label>Uma linha por ativo</label>
+      <textarea id="csvInput" placeholder="BBAS3, Ação, 100, 24.50, 27.10
+HGRU11, FII, 50, 115.00, 118.30"></textarea>
+      <div class="hint">Formato: ticker, classe, quantidade, preço médio, preço atual (opcional), moeda (opcional: BRL ou USD), setor (opcional). Só use pra ativo NOVO — se já existir, cria duplicado. Para renda fixa, use "Registrar movimento".</div>
+      <button class="btn" id="importBtn">Importar linhas</button>
+      <button class="btn secondary" id="clearAllBtn">Limpar esta carteira</button>
+      <div id="importMsg" class="msg"></div>
+    </div>
+  </div>
+
+  <div class="status" id="statusLine"></div>
+</div>
+</div>
+
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.0/firebase-firestore-compat.js"></script>
+<script>
+// ===== Firebase config — preencher com os valores do seu projeto Firebase =====
+const firebaseConfig = {
+  apiKey: "AIzaSyAE-JEtuuyGHVNX3sAVvlPcMBAQ2Wnc7IM",
+  authDomain: "carteira-leoprm.firebaseapp.com",
+  projectId: "carteira-leoprm",
+  storageBucket: "carteira-leoprm.firebasestorage.app",
+  messagingSenderId: "415486946726",
+  appId: "1:415486946726:web:efc8f88397b4dfaec5f367",
+  measurementId: "G-H6BXMLJENK"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+
+let activeEnv = 'investimentos';
+let editingId = null;
+const ENV_KEYS = {investimentos:'investimentos', reserva:'reserva'};
+const DIV_ENV_KEYS = {investimentos:'dividendos_investimentos', reserva:'dividendos_reserva'};
+const MOV_ENV_KEYS = {investimentos:'movimentacoes_investimentos', reserva:'movimentacoes_reserva'};
+const CURRENCY_CLASSES = ['Ação','ETF'];
+let portfolios = {investimentos:[], reserva:[]};
+let dividendos = {investimentos:{registros:[], sugestoes:[]}, reserva:{registros:[], sugestoes:[]}};
+let movimentacoes = {investimentos:[], reserva:[]};
+let boletim = {texto:'', geradoEm:null};
+let referencias = {cdi:null, selic:null, ipca:null, updatedAt:null};
+const CLASS_COLORS = {'Ação':'#c9a35c','FII':'#4fae8f','Renda Fixa':'#6b8cae','ETF':'#a879b8','Cripto':'#c1594a','Outro':'#7a8592'};
+const SECTOR_PALETTE = ['#c9a35c','#4fae8f','#6b8cae','#a879b8','#c1594a','#7a8592','#d4a574','#5a8f7b','#8a6d9e','#8fae4f','#4f7cae','#ae4f8f'];
+const VALID_CLASSES = ['Ação','FII','Renda Fixa','ETF','Cripto','Outro'];
+const RF_LABELS = {CDI:'% do CDI', SELIC:'% da SELIC', IPCA:'IPCA +', PRE:'Prefixado a.a.'};
+const MOV_LABELS = {compra:'Compra', venda:'Venda', dividendo:'Dividendo', jcp:'JCP', desdobramento:'Desdobramento', grupamento:'Grupamento', bonificacao:'Bonificação', rf_aporte:'Aporte RF', rf_resgate:'Resgate RF', rf_vencimento:'Vencimento RF'};
+
+const fmtBRL = n => (n<0?'-':'') + 'R$ ' + Math.abs(n).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtPct = n => (n>=0?'+':'') + n.toFixed(2) + '%';
+const uid = () => Math.random().toString(36).slice(2,10);
+const escapeHtml = s => String(s).replace(/[&<>"']/g, m => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]));
+const todayISO = () => new Date().toISOString().slice(0,10);
+
+function effectiveAnnualRate(tipoTaxa, percentual){
+  switch(tipoTaxa){
+    case 'CDI': return (referencias.cdi||0) * (percentual/100);
+    case 'SELIC': return (referencias.selic||0) * (percentual/100);
+    case 'IPCA': return (referencias.ipca||0) + percentual;
+    case 'PRE': return percentual;
+    default: return 0;
+  }
+}
+
+function rfCurrentValue(rf, asOfISO){
+  const days = Math.max(0, (new Date(asOfISO) - new Date(rf.dataBase)) / 86400000);
+  const annualPct = effectiveAnnualRate(rf.tipoTaxa, rf.percentual);
+  const dailyRate = Math.pow(1 + annualPct/100, 1/365) - 1;
+  return rf.valorBase * Math.pow(1 + dailyRate, days);
+}
+
+function calc(pm, pa, qtd){
+  const invested = qtd * pm;
+  const current = qtd * pa;
+  const pl = current - invested;
+  const plPct = invested !== 0 ? (pl/invested)*100 : 0;
+  return {invested, current, pl, plPct};
+}
+
+function currentList(){ return portfolios[activeEnv]; }
+
+function render(){
+  const list = currentList();
+  const body = document.getElementById('assetBody');
+  const empty = document.getElementById('emptyState');
+  body.innerHTML = '';
+  empty.style.display = list.length === 0 ? 'block' : 'none';
+
+  let totalInvested = 0, totalCurrent = 0;
+  const byClass = {};
+  const bySector = {};
+  const today = todayISO();
+
+  list.forEach(item=>{
+    let pm, pa, qtd = item.qtd;
+    const subParts = [];
+    if(item.classe === 'Renda Fixa' && item.rf){
+      const cur = rfCurrentValue(item.rf, today);
+      pm = item.rf.totalAportado;
+      pa = cur;
+      qtd = 1;
+      let s = `${RF_LABELS[item.rf.tipoTaxa]} ${item.rf.percentual}${item.rf.tipoTaxa==='PRE'?'%':''} · desde ${item.rf.dataBase.split('-').reverse().join('/')}`;
+      if(item.rf.vencimento) s += ` · vence ${item.rf.vencimento.split('-').reverse().join('/')}`;
+      subParts.push(s);
+    } else {
+      pm = item.pm; pa = item.pa;
+      if(item.moeda === 'USD') subParts.push('Cotado em US$ · convertido para R$ automaticamente');
+      if(item.setor) subParts.push(item.setor);
+    }
+    const subNote = subParts.join(' · ');
+    const c = calc(pm, pa, qtd);
+    totalInvested += c.invested;
+    totalCurrent += c.current;
+    byClass[item.classe] = (byClass[item.classe]||0) + c.current;
+    const setorKey = (item.classe !== 'Renda Fixa' && item.setor && item.setor.trim()) ? item.setor.trim() : 'Não classificado';
+    bySector[setorKey] = (bySector[setorKey]||0) + c.current;
+
+    const tr = document.createElement('tr');
+    const isRF = item.classe === 'Renda Fixa';
+
+    if(editingId === item.id && !isRF){
+      tr.innerHTML = `
+        <td class="name-cell">${escapeHtml(item.nome)}<input class="edit-field" data-field="setor" type="text" value="${escapeHtml(item.setor||'')}" placeholder="Setor" style="margin-top:4px;font-size:.76rem;padding:4px 6px;"></td>
+        <td>${escapeHtml(item.classe)}</td>
+        <td><input class="edit-field" data-field="qtd" type="number" step="any" value="${item.qtd}"></td>
+        <td><input class="edit-field" data-field="pm" type="number" step="any" value="${item.pm}"></td>
+        <td><input class="edit-field" data-field="pa" type="number" step="any" value="${item.pa}"></td>
+        <td>${fmtBRL(c.current)}</td>
+        <td class="${c.pl>=0?'pos':'neg'}">${fmtPct(c.plPct)}</td>
+        <td>
+          <button class="icon-btn save-edit" data-id="${item.id}" title="Salvar">✓</button>
+          <button class="icon-btn del cancel-edit" data-id="${item.id}" title="Cancelar">✕</button>
+        </td>
+      `;
+    } else if(editingId === item.id && isRF){
+      tr.innerHTML = `
+        <td class="name-cell">${escapeHtml(item.nome)}</td>
+        <td>${escapeHtml(item.classe)}</td>
+        <td><label style="font-size:.68rem;">Vencimento</label><input class="edit-field-rf" data-field="vencimento" type="date" value="${item.rf.vencimento||''}"></td>
+        <td>
+          <select class="edit-field-rf" data-field="tipoTaxa">
+            <option value="CDI" ${item.rf.tipoTaxa==='CDI'?'selected':''}>% CDI</option>
+            <option value="SELIC" ${item.rf.tipoTaxa==='SELIC'?'selected':''}>% SELIC</option>
+            <option value="IPCA" ${item.rf.tipoTaxa==='IPCA'?'selected':''}>IPCA+</option>
+            <option value="PRE" ${item.rf.tipoTaxa==='PRE'?'selected':''}>Prefixado</option>
+          </select>
+          <input class="edit-field-rf" data-field="percentual" type="number" step="any" value="${item.rf.percentual}" style="margin-top:4px;" title="Taxa/percentual">
+        </td>
+        <td><label style="font-size:.68rem;">Valor atual (corrige p/ hoje)</label><input class="edit-field-rf" data-field="valorAtual" type="number" step="any" value="${pa.toFixed(2)}"></td>
+        <td>${fmtBRL(c.current)}</td>
+        <td class="${c.pl>=0?'pos':'neg'}">${fmtPct(c.plPct)}</td>
+        <td>
+          <button class="icon-btn save-edit-rf" data-id="${item.id}" title="Salvar">✓</button>
+          <button class="icon-btn del cancel-edit" data-id="${item.id}" title="Cancelar">✕</button>
+        </td>
+      `;
+    } else {
+      tr.innerHTML = `
+        <td class="name-cell">${escapeHtml(item.nome)}${subNote?`<span class="sub-note">${escapeHtml(subNote)}</span>`:''}</td>
+        <td>${escapeHtml(item.classe)}</td>
+        <td>${isRF ? '—' : item.qtd}</td>
+        <td>${fmtBRL(pm)}</td>
+        <td>${fmtBRL(pa)}</td>
+        <td>${fmtBRL(c.current)}</td>
+        <td class="${c.pl>=0?'pos':'neg'}">${fmtPct(c.plPct)}</td>
+        <td>
+          <button class="icon-btn ${isRF?'edit-row-rf':'edit-row'}" data-id="${item.id}" title="Editar">✎</button>
+          <button class="icon-btn del" data-id="${item.id}" title="Remover">✕</button>
+        </td>
+      `;
+    }
+    body.appendChild(tr);
+  });
+
+  body.querySelectorAll('.del:not(.cancel-edit)').forEach(b=> b.addEventListener('click', ()=> removeItem(b.dataset.id)));
+  body.querySelectorAll('.edit-row').forEach(b=> b.addEventListener('click', ()=> { editingId = b.dataset.id; render(); }));
+  body.querySelectorAll('.edit-row-rf').forEach(b=> b.addEventListener('click', ()=> { editingId = b.dataset.id; render(); }));
+  body.querySelectorAll('.cancel-edit').forEach(b=> b.addEventListener('click', ()=> { editingId = null; render(); }));
+  body.querySelectorAll('.save-edit').forEach(b=> b.addEventListener('click', ()=> saveRowEdit(b.dataset.id)));
+  body.querySelectorAll('.save-edit-rf').forEach(b=> b.addEventListener('click', ()=> saveRFEdit(b.dataset.id)));
+
+  const totalPL = totalCurrent - totalInvested;
+  const totalPLPct = totalInvested !== 0 ? (totalPL/totalInvested)*100 : 0;
+
+  document.getElementById('overview').innerHTML = `
+    <div class="card"><div class="label">Total investido</div><div class="value">${fmtBRL(totalInvested)}</div></div>
+    <div class="card"><div class="label">Valor atual</div><div class="value">${fmtBRL(totalCurrent)}</div></div>
+    <div class="card"><div class="label">Resultado</div><div class="value ${totalPL>=0?'pos':'neg'}">${fmtBRL(totalPL)}</div><div class="sub ${totalPL>=0?'pos':'neg'}">${fmtPct(totalPLPct)}</div></div>
+  `;
+
+  const allocWrap = document.getElementById('allocWrap');
+  if(totalCurrent <= 0){
+    allocWrap.innerHTML = '';
+  } else {
+    const classes = Object.keys(byClass).sort((a,b)=>byClass[b]-byClass[a]);
+    let barHtml = '<div class="alloc-bar">';
+    classes.forEach(c=>{ const pct=(byClass[c]/totalCurrent)*100; barHtml += `<div class="alloc-seg" style="width:${pct}%;background:${CLASS_COLORS[c]||'#7a8592'}"></div>`; });
+    barHtml += '</div>';
+    let legendHtml = '<div class="alloc-legend">';
+    classes.forEach(c=>{ const pct=(byClass[c]/totalCurrent)*100; legendHtml += `<span><span class="dot" style="background:${CLASS_COLORS[c]||'#7a8592'}"></span>${escapeHtml(c)} · ${pct.toFixed(1)}%</span>`; });
+    legendHtml += '</div>';
+    allocWrap.innerHTML = barHtml + legendHtml;
+  }
+
+  const sectorWrap = document.getElementById('sectorWrap');
+  if(totalCurrent <= 0){
+    sectorWrap.innerHTML = '';
+  } else {
+    const sectors = Object.keys(bySector).sort((a,b)=>bySector[b]-bySector[a]);
+    let barHtml = '<div class="alloc-bar">';
+    sectors.forEach((s,i)=>{ const pct=(bySector[s]/totalCurrent)*100; barHtml += `<div class="alloc-seg" style="width:${pct}%;background:${SECTOR_PALETTE[i%SECTOR_PALETTE.length]}"></div>`; });
+    barHtml += '</div>';
+    let legendHtml = '<div class="alloc-legend">';
+    sectors.forEach((s,i)=>{ const pct=(bySector[s]/totalCurrent)*100; legendHtml += `<span><span class="dot" style="background:${SECTOR_PALETTE[i%SECTOR_PALETTE.length]}"></span>${escapeHtml(s)} · ${pct.toFixed(1)}%</span>`; });
+    legendHtml += '</div>';
+    sectorWrap.innerHTML = barHtml + legendHtml;
+  }
+
+  document.getElementById('known-assets').innerHTML = list.map(i=>`<option value="${escapeHtml(i.nome)}">`).join('');
+  const sectorSet = [...new Set(list.map(i=>i.setor).filter(Boolean))];
+  document.getElementById('known-sectors').innerHTML = sectorSet.map(s=>`<option value="${escapeHtml(s)}">`).join('');
+
+  const hasRF = list.some(i=>i.classe==='Renda Fixa');
+  if(hasRF && (!referencias.cdi && !referencias.selic && !referencias.ipca)){
+    document.getElementById('refsPanel').style.display = 'block';
+  }
+}
+
+function processVencimentos(env){
+  const list = portfolios[env];
+  const today = todayISO();
+  const vencidos = [];
+  const remaining = list.filter(item=>{
+    if(item.classe === 'Renda Fixa' && item.rf && item.rf.vencimento && item.rf.vencimento <= today){
+      vencidos.push(item.nome);
+      logMovimento(env, 'rf_vencimento', item.nome, today, `Título vencido e removido da carteira`, item.rf.valorBase, null, 'auto');
+      return false;
+    }
+    return true;
+  });
+  if(vencidos.length){
+    portfolios[env] = remaining;
+    save(env);
+  }
+  return vencidos;
+}
+
+async function docRef(name){ return db.collection('portfolio').doc(name); }
+
+async function save(env){
+  document.getElementById('statusLine').textContent = 'Salvando…';
+  try{
+    await db.collection('portfolio').doc(ENV_KEYS[env]).set({items: portfolios[env], updatedAt: Date.now()});
+    document.getElementById('statusLine').textContent = 'Salvo — os dados ficam disponíveis na próxima vez que você abrir este painel.';
+  }catch(e){
+    document.getElementById('statusLine').textContent = 'Não foi possível salvar agora. Seus dados continuam visíveis nesta sessão.';
+  }
+}
+
+async function saveRefs(){
+  try{ await db.collection('portfolio').doc('referencias').set({...referencias, updatedAt: Date.now()}); }catch(e){}
+}
+
+async function loadEnv(env){
+  try{
+    const doc = await db.collection('portfolio').doc(ENV_KEYS[env]).get();
+    if(doc.exists && Array.isArray(doc.data().items)) portfolios[env] = doc.data().items;
+  }catch(e){}
+}
+
+async function loadRefs(){
+  try{
+    const doc = await db.collection('portfolio').doc('referencias').get();
+    if(doc.exists) referencias = {cdi:doc.data().cdi||null, selic:doc.data().selic||null, ipca:doc.data().ipca||null, updatedAt:doc.data().updatedAt||null};
+  }catch(e){}
+}
+
+async function saveDividendos(env){
+  try{ await db.collection('portfolio').doc(DIV_ENV_KEYS[env]).set({...dividendos[env], updatedAt: Date.now()}); }catch(e){}
+}
+
+async function loadDividendos(env){
+  try{
+    const doc = await db.collection('portfolio').doc(DIV_ENV_KEYS[env]).get();
+    if(doc.exists){
+      dividendos[env] = {
+        registros: Array.isArray(doc.data().registros) ? doc.data().registros : [],
+        sugestoes: Array.isArray(doc.data().sugestoes) ? doc.data().sugestoes : []
+      };
+    }
+  }catch(e){}
+}
+
+async function saveMovimentacoes(env){
+  try{ await db.collection('portfolio').doc(MOV_ENV_KEYS[env]).set({eventos: movimentacoes[env], updatedAt: Date.now()}); }catch(e){}
+}
+
+async function loadMovimentacoes(env){
+  try{
+    const doc = await db.collection('portfolio').doc(MOV_ENV_KEYS[env]).get();
+    if(doc.exists && Array.isArray(doc.data().eventos)) movimentacoes[env] = doc.data().eventos;
+  }catch(e){}
+}
+
+function logMovimento(env, tipo, ativo, data, detalhes, valor, qtdDelta, origem){
+  movimentacoes[env] = movimentacoes[env] || [];
+  movimentacoes[env].push({id:uid(), tipo, ativo, data: data||todayISO(), detalhes, valor: valor??null, qtdDelta: qtdDelta??null, origem: origem||'manual'});
+  saveMovimentacoes(env);
+}
+
+async function loadBoletim(){
+  try{
+    const doc = await db.collection('portfolio').doc('boletim').get();
+    if(doc.exists) boletim = {texto: doc.data().texto || '', geradoEm: doc.data().geradoEm || null};
+  }catch(e){}
+}
+
+function currentDiv(){ return dividendos[activeEnv]; }
+
+function divTotals(env){
+  let recebido = 0, aReceber = 0;
+  dividendos[env].registros.forEach(r=>{
+    if(r.status === 'recebido') recebido += r.valor; else aReceber += r.valor;
+  });
+  return {recebido, aReceber};
+}
+
+function renderDividendos(){
+  const d = currentDiv();
+  const totals = divTotals(activeEnv);
+  document.getElementById('divOverview').innerHTML = `
+    <div class="card"><div class="label">Dividendos recebidos</div><div class="value pos">${fmtBRL(totals.recebido)}</div></div>
+    <div class="card"><div class="label">A receber (confirmado)</div><div class="value">${fmtBRL(totals.aReceber)}</div></div>
+  `;
+
+  const body = document.getElementById('divBody');
+  body.innerHTML = '';
+  if(d.registros.length === 0){
+    body.innerHTML = '<tr><td colspan="6" class="empty">Nenhum dividendo lançado ainda.</td></tr>';
+  } else {
+    [...d.registros].sort((a,b)=> (b.data||'').localeCompare(a.data||'')).forEach(r=>{
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td class="name-cell">${escapeHtml(r.ativo)}</td>
+        <td>${escapeHtml(r.tipo||'Dividendo')}</td>
+        <td>${r.data ? r.data.split('-').reverse().join('/') : '—'}</td>
+        <td>${fmtBRL(r.valor)}</td>
+        <td>${r.status==='recebido'?'Recebido':'A receber'}</td>
+        <td>${r.origem==='auto'?'automático':'manual'} <button class="icon-btn del div-remove" data-id="${r.id}" title="Remover">✕</button></td>
+      `;
+      body.appendChild(tr);
+    });
+  }
+  body.querySelectorAll('.div-remove').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      dividendos[activeEnv].registros = dividendos[activeEnv].registros.filter(r=>r.id!==b.dataset.id);
+      renderDividendos(); saveDividendos(activeEnv);
+    });
+  });
+
+  const sugArea = document.getElementById('divSugestoes');
+  if(!d.sugestoes || d.sugestoes.length === 0){
+    sugArea.innerHTML = '';
+  } else {
+    sugArea.innerHTML = '<div class="hint">Sugestões detectadas automaticamente — confirme antes de contar no total:</div>' +
+      d.sugestoes.map(s=>`
+        <div class="review-item" data-sid="${s.id}">
+          <div class="review-row" style="grid-template-columns:1.3fr 1fr 1fr auto auto;">
+            <div><label>Ativo</label><input class="sg-ativo" value="${escapeHtml(s.ativo)}"></div>
+            <div><label>Valor estimado</label><input class="sg-valor" type="number" step="any" value="${s.valorEstimado||0}"></div>
+            <div><label>Data prevista</label><input class="sg-data" type="date" value="${s.dataEstimada||''}"></div>
+            <div><button class="btn small sg-confirm">Confirmar</button></div>
+            <div><button class="icon-btn del sg-discard" title="Descartar">✕</button></div>
+          </div>
+          <div class="hint">${escapeHtml(s.fonte||'')}</div>
+        </div>
+      `).join('');
+    sugArea.querySelectorAll('.sg-confirm').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const wrap = btn.closest('[data-sid]');
+        const sid = wrap.dataset.sid;
+        const s = d.sugestoes.find(x=>x.id===sid);
+        if(!s) return;
+        const ativo = wrap.querySelector('.sg-ativo').value.trim();
+        const valor = parseFloat(wrap.querySelector('.sg-valor').value) || 0;
+        const data = wrap.querySelector('.sg-data').value || todayISO();
+        d.registros.push({id:uid(), ativo, valor, data, tipo:'Dividendo', status:'a receber', origem:'manual'});
+        d.sugestoes = d.sugestoes.filter(x=>x.id!==sid);
+        logMovimento(activeEnv, 'dividendo', ativo, data, 'Dividendo confirmado (a receber)', valor, null, 'manual');
+        renderDividendos(); renderMovimentacoes(); saveDividendos(activeEnv);
+      });
+    });
+    sugArea.querySelectorAll('.sg-discard').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const sid = btn.closest('[data-sid]').dataset.sid;
+        d.sugestoes = d.sugestoes.filter(x=>x.id!==sid);
+        renderDividendos(); saveDividendos(activeEnv);
+      });
+    });
+  }
+
+  const dl = document.getElementById('known-assets-div');
+  if(dl) dl.innerHTML = currentList().map(i=>`<option value="${escapeHtml(i.nome)}">`).join('');
+}
+
+function renderMovimentacoes(){
+  const list = [...(movimentacoes[activeEnv]||[])].sort((a,b)=> (b.data||'').localeCompare(a.data||''));
+  const body = document.getElementById('movBody');
+  const empty = document.getElementById('movEmptyState');
+  body.innerHTML = '';
+  empty.style.display = list.length === 0 ? 'block' : 'none';
+  list.forEach(m=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${m.data ? m.data.split('-').reverse().join('/') : '—'}</td>
+      <td class="name-cell">${escapeHtml(m.ativo||'')}</td>
+      <td>${escapeHtml(MOV_LABELS[m.tipo]||m.tipo)}</td>
+      <td>${escapeHtml(m.detalhes||'')}</td>
+      <td>${m.valor!=null ? fmtBRL(m.valor) : '—'}</td>
+    `;
+    body.appendChild(tr);
+  });
+}
+
+function renderBoletim(){
+  const el = document.getElementById('boletimContent');
+  if(!boletim.texto){
+    el.innerHTML = 'Ainda não gerado — o boletim é enviado automaticamente após o fechamento do mercado.';
+    return;
+  }
+  const dataStr = boletim.geradoEm ? new Date(boletim.geradoEm).toLocaleString('pt-BR') : '';
+  el.innerHTML = `<div class="hint">Gerado em ${dataStr}</div><div style="white-space:pre-wrap;margin-top:8px;">${escapeHtml(boletim.texto)}</div>`;
+}
+
+function removeItem(id){
+  const item = currentList().find(i=>i.id===id);
+  portfolios[activeEnv] = currentList().filter(i=>i.id!==id);
+  if(item) logMovimento(activeEnv, 'venda', item.nome, todayISO(), 'Ativo removido manualmente da carteira', null, null, 'manual');
+  render(); save(activeEnv); renderDividendos(); renderMovimentacoes();
+}
+
+function saveRowEdit(id){
+  const item = currentList().find(i=>i.id===id);
+  if(!item) return;
+  const row = document.querySelector(`.save-edit[data-id="${id}"]`).closest('tr');
+  const fields = {};
+  row.querySelectorAll('.edit-field').forEach(inp=>{ fields[inp.dataset.field] = inp.dataset.field === 'setor' ? inp.value.trim() : parseFloat(inp.value); });
+  if(isNaN(fields.qtd) || fields.qtd < 0 || isNaN(fields.pm) || fields.pm < 0 || isNaN(fields.pa) || fields.pa < 0){
+    alert('Valores inválidos — quantidade e preços precisam ser números positivos.');
+    return;
+  }
+  item.qtd = fields.qtd; item.pm = fields.pm; item.pa = fields.pa; item.setor = fields.setor || '';
+  editingId = null;
+  render(); save(activeEnv); renderDividendos();
+}
+
+function saveRFEdit(id){
+  const item = currentList().find(i=>i.id===id);
+  if(!item || !item.rf) return;
+  const row = document.querySelector(`.save-edit-rf[data-id="${id}"]`).closest('tr');
+  const fields = {};
+  row.querySelectorAll('.edit-field-rf').forEach(inp=>{ fields[inp.dataset.field] = inp.value; });
+  const valorAtual = parseFloat(fields.valorAtual);
+  const percentual = parseFloat(fields.percentual);
+  if(isNaN(valorAtual) || valorAtual < 0 || isNaN(percentual)){
+    alert('Valores inválidos — valor atual e taxa precisam ser números válidos.');
+    return;
+  }
+  item.rf.valorBase = valorAtual;
+  item.rf.dataBase = todayISO();
+  item.rf.tipoTaxa = fields.tipoTaxa;
+  item.rf.percentual = percentual;
+  item.rf.vencimento = fields.vencimento || '';
+  editingId = null;
+  render(); save(activeEnv);
+}
+
+function findAsset(nome){
+  const norm = nome.trim().toLowerCase();
+  return currentList().find(i=>i.nome.trim().toLowerCase()===norm);
+}
+
+function applyMovement({nome, classe, tipo, qtd, preco, rfTipo, rfData, rfVencimento, moeda, setor}){
+  nome = nome.trim();
+  const list = currentList();
+  const existing = findAsset(nome);
+
+  if(classe === 'Renda Fixa'){
+    const dataAplicacao = rfData || todayISO();
+    if(tipo === 'compra'){
+      const valor = qtd; // reused field: valor aplicado
+      if(existing && existing.rf){
+        const curVal = rfCurrentValue(existing.rf, todayISO());
+        existing.rf.valorBase = curVal + valor;
+        existing.rf.dataBase = todayISO();
+        existing.rf.totalAportado += valor;
+        existing.rf.tipoTaxa = rfTipo;
+        existing.rf.percentual = preco;
+        existing.rf.vencimento = rfVencimento || '';
+        logMovimento(activeEnv, 'rf_aporte', nome, todayISO(), `Aporte de ${fmtBRL(valor)}`, valor, null, 'manual');
+        return {ok:true, msg:`Aporte registrado em ${nome}: +${fmtBRL(valor)}.`};
+      } else {
+        list.push({id:uid(), nome, classe, qtd:1, rf:{valorBase:valor, dataBase:dataAplicacao, tipoTaxa:rfTipo, percentual:preco, totalAportado:valor, vencimento:rfVencimento||''}});
+        logMovimento(activeEnv, 'rf_aporte', nome, todayISO(), `Título criado com ${fmtBRL(valor)} aplicado`, valor, null, 'manual');
+        return {ok:true, msg:`${nome} criado com ${fmtBRL(valor)} aplicado.`};
+      }
+    } else {
+      if(!existing || !existing.rf) return {ok:false, msg:`${nome} não está cadastrado nesta carteira.`};
+      const curVal = rfCurrentValue(existing.rf, todayISO());
+      const resgate = qtd;
+      if(resgate > curVal + 0.01) return {ok:false, msg:`Valor de resgate (${fmtBRL(resgate)}) maior que o saldo atual (${fmtBRL(curVal)}).`};
+      const novoBase = curVal - resgate;
+      existing.rf.totalAportado -= resgate;
+      logMovimento(activeEnv, 'rf_resgate', nome, todayISO(), `Resgate de ${fmtBRL(resgate)}`, resgate, null, 'manual');
+      if(novoBase <= 0.01){
+        portfolios[activeEnv] = list.filter(i=>i.id!==existing.id);
+        return {ok:true, msg:`Posição em ${nome} zerada e removida.`};
+      }
+      existing.rf.valorBase = novoBase;
+      existing.rf.dataBase = todayISO();
+      return {ok:true, msg:`Resgate registrado em ${nome}: -${fmtBRL(resgate)}.`};
+    }
+  }
+
+  if(tipo === 'compra'){
+    if(existing){
+      const newQtd = existing.qtd + qtd;
+      existing.pm = ((existing.qtd*existing.pm) + (qtd*preco)) / newQtd;
+      existing.qtd = newQtd;
+      existing.pa = preco;
+      if(CURRENCY_CLASSES.includes(classe)) existing.moeda = moeda || existing.moeda || 'BRL';
+      if(setor) existing.setor = setor;
+      logMovimento(activeEnv, 'compra', nome, todayISO(), `Compra de ${qtd} un. a ${fmtBRL(preco)}`, qtd*preco, qtd, 'manual');
+      return {ok:true, msg:`Compra registrada: ${nome} agora com ${newQtd} unidades, PM ${fmtBRL(existing.pm)}.`};
+    } else {
+      list.push({id:uid(), nome, classe, qtd, pm:preco, pa:preco, moeda: CURRENCY_CLASSES.includes(classe) ? (moeda||'BRL') : 'BRL', setor: setor||''});
+      logMovimento(activeEnv, 'compra', nome, todayISO(), `Ativo criado: ${qtd} un. a ${fmtBRL(preco)}`, qtd*preco, qtd, 'manual');
+      return {ok:true, msg:`Ativo ${nome} criado com ${qtd} unidades a ${fmtBRL(preco)}.`};
+    }
+  } else {
+    if(!existing) return {ok:false, msg:`${nome} não está cadastrado nesta carteira — não há o que vender.`};
+    if(qtd > existing.qtd) return {ok:false, msg:`Quantidade de venda (${qtd}) maior que a posição atual (${existing.qtd}) de ${nome}.`};
+    existing.qtd -= qtd;
+    existing.pa = preco;
+    logMovimento(activeEnv, 'venda', nome, todayISO(), `Venda de ${qtd} un. a ${fmtBRL(preco)}`, qtd*preco, -qtd, 'manual');
+    if(existing.qtd <= 0){
+      portfolios[activeEnv] = list.filter(i=>i.id!==existing.id);
+      return {ok:true, msg:`Posição em ${nome} zerada e removida.`};
+    }
+    return {ok:true, msg:`Venda registrada: ${nome} agora com ${existing.qtd} unidades.`};
+  }
+}
+
+function updateMovFormUI(){
+  const classe = document.getElementById('m-classe').value;
+  const tipo = document.getElementById('m-tipo').value;
+  const isRF = classe === 'Renda Fixa';
+  document.getElementById('m-qtd-label').textContent = isRF ? 'Valor (R$)' : 'Quantidade';
+  document.getElementById('rf-tipo-wrap').style.display = (isRF && tipo==='compra') ? 'block' : 'none';
+  document.getElementById('rf-data-wrap').style.display = (isRF && tipo==='compra') ? 'block' : 'none';
+  document.getElementById('rf-vencimento-wrap').style.display = (isRF && tipo==='compra') ? 'block' : 'none';
+  document.getElementById('m-preco-wrap').style.display = (isRF && tipo==='venda') ? 'none' : 'block';
+  document.getElementById('m-preco-label').textContent = isRF ? rfPercLabel() : 'Preço unitário (R$)';
+  document.getElementById('m-moeda-wrap').style.display = CURRENCY_CLASSES.includes(classe) ? 'block' : 'none';
+  document.getElementById('m-setor-wrap').style.display = isRF ? 'none' : 'block';
+  if(!document.getElementById('rf-data').value) document.getElementById('rf-data').value = todayISO();
+  document.getElementById('movHint').textContent = isRF
+    ? 'Compra/aporte: informe o valor aplicado, o indexador e a taxa. Venda/resgate: informe o valor a resgatar — o app calcula o saldo atual sozinho a cada dia, com base no indexador. Se informar a data de vencimento, o título é removido automaticamente da carteira quando essa data chegar. Você pode corrigir taxa, indexador, valor atual e vencimento a qualquer momento pelo ✎.'
+    : 'Compra: cria o ativo (se novo) ou atualiza quantidade e preço médio ponderado. Venda: reduz a quantidade mantendo o preço médio; remove o ativo se zerar. Informe o preço unitário sempre em R$ (se comprou em dólar, converta pela cotação do dia da compra) — a moeda só define como o preço atual é atualizado automaticamente depois.';
+}
+function rfPercLabel(){
+  const t = document.getElementById('rf-tipo').value;
+  return RF_LABELS[t] + (t==='IPCA' ? ' (spread, ex: 6)' : ' (ex: 110)');
+}
+document.getElementById('m-classe').addEventListener('change', updateMovFormUI);
+document.getElementById('m-tipo').addEventListener('change', updateMovFormUI);
+document.getElementById('rf-tipo').addEventListener('change', updateMovFormUI);
+updateMovFormUI();
+
+document.getElementById('movBtn').addEventListener('click', ()=>{
+  const tipo = document.getElementById('m-tipo').value;
+  const nome = document.getElementById('m-nome').value.trim();
+  const classe = document.getElementById('m-classe').value;
+  const qtd = parseFloat(document.getElementById('m-qtd').value);
+  const preco = parseFloat(document.getElementById('m-preco').value);
+  const rfTipo = document.getElementById('rf-tipo').value;
+  const rfData = document.getElementById('rf-data').value;
+  const rfVencimento = document.getElementById('rf-vencimento').value;
+  const moeda = document.getElementById('m-moeda').value;
+  const setor = document.getElementById('m-setor').value.trim();
+  const msg = document.getElementById('movMsg');
+  const isRF = classe === 'Renda Fixa';
+
+  if(!nome || isNaN(qtd) || qtd<=0){
+    msg.textContent = 'Preencha ticker/nome e valor válidos.';
+    msg.className = 'msg err';
+    return;
+  }
+  if(isRF && tipo==='compra' && (isNaN(preco) || preco<=0)){
+    msg.textContent = 'Informe a taxa/percentual do indexador.';
+    msg.className = 'msg err';
+    return;
+  }
+  if(!isRF && (isNaN(preco) || preco<0)){
+    msg.textContent = 'Preencha o preço unitário.';
+    msg.className = 'msg err';
+    return;
+  }
+  const result = applyMovement({nome, classe, tipo, qtd, preco, rfTipo, rfData, rfVencimento, moeda, setor});
+  render(); save(activeEnv); renderDividendos(); renderMovimentacoes();
+  msg.textContent = result.msg;
+  msg.className = 'msg ' + (result.ok ? 'ok' : 'err');
+  if(result.ok){ document.getElementById('m-nome').value=''; document.getElementById('m-qtd').value=''; document.getElementById('m-preco').value=''; document.getElementById('rf-vencimento').value=''; document.getElementById('m-setor').value=''; }
+});
+
+document.getElementById('importBtn').addEventListener('click', ()=>{
+  const raw = document.getElementById('csvInput').value.trim();
+  const msg = document.getElementById('importMsg');
+  if(!raw){ msg.textContent='Cole ao menos uma linha.'; msg.className='msg err'; return; }
+  const lines = raw.split('\n').map(l=>l.trim()).filter(Boolean);
+  let added = 0, skipped = 0;
+  lines.forEach(line=>{
+    const parts = line.split(',').map(p=>p.trim());
+    if(parts.length < 4){ skipped++; return; }
+    const [nome, classeRaw, qtdRaw, pmRaw, paRaw, moedaRaw, setorRaw] = parts;
+    const classe = VALID_CLASSES.find(c=>c.toLowerCase()===classeRaw.toLowerCase()) || 'Outro';
+    const qtd = parseFloat(qtdRaw);
+    const pm = parseFloat(pmRaw);
+    const pa = paRaw !== undefined && paRaw !== '' ? parseFloat(paRaw) : NaN;
+    const moeda = CURRENCY_CLASSES.includes(classe) && (moedaRaw||'').trim().toUpperCase()==='USD' ? 'USD' : 'BRL';
+    const setor = (setorRaw||'').trim();
+    if(!nome || isNaN(qtd) || isNaN(pm)){ skipped++; return; }
+    if(classe === 'Renda Fixa'){
+      currentList().push({id:uid(), nome, classe, qtd:1, rf:{valorBase:pm, dataBase:todayISO(), tipoTaxa:'PRE', percentual:0, totalAportado:pm}});
+    } else {
+      currentList().push({id:uid(), nome, classe, qtd, pm, pa: isNaN(pa)?pm:pa, moeda, setor});
+    }
+    logMovimento(activeEnv, 'compra', nome, todayISO(), `Importado via carga: ${qtd} un. a ${fmtBRL(isNaN(pa)?pm:pa)}`, qtd*(isNaN(pa)?pm:pa), qtd, 'manual');
+    added++;
+  });
+  render(); save(activeEnv); renderDividendos(); renderMovimentacoes();
+  msg.textContent = `${added} ativo(s) importado(s)${skipped>0?`, ${skipped} linha(s) ignorada(s)`:''}.${added>0?' Ativos de Renda Fixa importados aqui ficam sem indexador — ajuste em "Registrar movimento" ou pelo ✎.':''}`;
+  msg.className = skipped>0 && added===0 ? 'msg err' : 'msg ok';
+  if(added>0) document.getElementById('csvInput').value = '';
+});
+
+document.getElementById('clearAllBtn').addEventListener('click', ()=>{
+  if(confirm(`Isso remove todos os ativos da carteira "${activeEnv}". Confirma?`)){
+    portfolios[activeEnv] = [];
+    render(); save(activeEnv); renderDividendos();
+  }
+});
+
+document.getElementById('dvBtn').addEventListener('click', ()=>{
+  const ativo = document.getElementById('dv-ativo').value.trim();
+  const tipo = document.getElementById('dv-tipo').value;
+  const valor = parseFloat(document.getElementById('dv-valor').value);
+  const data = document.getElementById('dv-data').value || todayISO();
+  const status = document.getElementById('dv-status').value;
+  const msg = document.getElementById('dvMsg');
+  if(!ativo || isNaN(valor) || valor<=0){
+    msg.textContent = 'Preencha ativo e valor válidos.';
+    msg.className = 'msg err';
+    return;
+  }
+  dividendos[activeEnv].registros.push({id:uid(), ativo, tipo, valor, data, status, origem:'manual'});
+  logMovimento(activeEnv, tipo.toLowerCase()==='jcp'?'jcp':'dividendo', ativo, data, `${tipo} lançado manualmente (${status})`, valor, null, 'manual');
+  renderDividendos(); renderMovimentacoes(); saveDividendos(activeEnv);
+  msg.textContent = 'Dividendo lançado.';
+  msg.className = 'msg ok';
+  document.getElementById('dv-ativo').value=''; document.getElementById('dv-valor').value='';
+});
+
+document.querySelectorAll('.env-btn').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('.env-btn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');
+    activeEnv = b.dataset.env;
+    editingId = null;
+    render();
+    renderDividendos();
+    renderMovimentacoes();
+  });
+});
+
+document.querySelectorAll('.tab').forEach(t=>{
+  t.addEventListener('click', ()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    ['mov','carga'].forEach(name=>{
+      document.getElementById('tab-'+name).style.display = (t.dataset.tab===name) ? 'block' : 'none';
+    });
+  });
+});
+
+document.getElementById('toggleRefs').addEventListener('click', ()=>{
+  const panel = document.getElementById('refsPanel');
+  const showing = panel.style.display === 'block';
+  panel.style.display = showing ? 'none' : 'block';
+  document.getElementById('toggleRefs').textContent = showing ? 'editar' : 'fechar';
+});
+
+document.getElementById('saveRefsBtn').addEventListener('click', async ()=>{
+  referencias.cdi = parseFloat(document.getElementById('ref-cdi').value) || 0;
+  referencias.selic = parseFloat(document.getElementById('ref-selic').value) || 0;
+  referencias.ipca = parseFloat(document.getElementById('ref-ipca').value) || 0;
+  referencias.updatedAt = Date.now();
+  await saveRefs();
+  updateRefsUI();
+  render();
+});
+
+function updateRefsUI(){
+  document.getElementById('ref-cdi').value = referencias.cdi || '';
+  document.getElementById('ref-selic').value = referencias.selic || '';
+  document.getElementById('ref-ipca').value = referencias.ipca || '';
+  document.getElementById('refsUpdated').textContent = referencias.updatedAt
+    ? `Atualizado em ${new Date(referencias.updatedAt).toLocaleDateString('pt-BR')}.`
+    : 'Ainda não definidos — a renda fixa não vai render até você preencher pelo menos um índice.';
+}
+
+// ===== Autenticação =====
+document.getElementById('lgBtn').addEventListener('click', async ()=>{
+  const email = document.getElementById('lg-email').value.trim();
+  const senha = document.getElementById('lg-senha').value;
+  const msg = document.getElementById('lgMsg');
+  msg.textContent = 'Entrando…'; msg.className = 'msg';
+  try{
+    await auth.signInWithEmailAndPassword(email, senha);
+  }catch(e){
+    msg.textContent = 'E-mail ou senha inválidos.';
+    msg.className = 'msg err';
+  }
+});
+document.getElementById('logoutBtn').addEventListener('click', ()=> auth.signOut());
+
+auth.onAuthStateChanged(async (user)=>{
+  if(user){
+    document.getElementById('loginGate').style.display = 'none';
+    document.getElementById('appRoot').style.display = 'block';
+    await init();
+  } else {
+    document.getElementById('loginGate').style.display = 'block';
+    document.getElementById('appRoot').style.display = 'none';
+  }
+});
+
+async function init(){
+  render();
+  await loadEnv('investimentos');
+  await loadEnv('reserva');
+  await loadRefs();
+  await loadDividendos('investimentos');
+  await loadDividendos('reserva');
+  await loadMovimentacoes('investimentos');
+  await loadMovimentacoes('reserva');
+  await loadBoletim();
+  const vencidos = [...processVencimentos('investimentos'), ...processVencimentos('reserva')];
+  updateRefsUI();
+  render();
+  renderDividendos();
+  renderMovimentacoes();
+  renderBoletim();
+  document.getElementById('statusLine').textContent = vencidos.length
+    ? `Dados salvos automaticamente neste painel. Título(s) vencido(s) e removido(s): ${vencidos.join(', ')}.`
+    : 'Dados salvos automaticamente neste painel.';
+}
+</script>
+</body>
+</html>
