@@ -101,12 +101,12 @@ def process_env(db, env):
             valor_total = round(valor_unit * item.get("qtd", 0), 2)
             registros.append({
                 "id": uuid.uuid4().hex[:8], "ativo": nome, "valor": valor_total,
-                "data": data, "tipo": "Dividendo", "status": "recebido", "origem": "auto",
+                "data": data, "tipo": "Dividendo", "status": "a receber", "origem": "auto",
             })
             eventos.append({
                 "id": uuid.uuid4().hex[:8], "tipo": "dividendo", "ativo": nome, "data": data,
-                "detalhes": f"Dividendo pago: {valor_unit:.4f}/unidade", "valor": valor_total,
-                "qtdDelta": None, "origem": "auto",
+                "detalhes": f"Dividendo anunciado (data-com/ex {data}): {valor_unit:.4f}/unidade — confirme no painel quando o pagamento cair na conta",
+                "valor": valor_total, "qtdDelta": None, "origem": "auto",
             })
             div_changed = True
             mov_changed = True

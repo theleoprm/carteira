@@ -178,7 +178,7 @@
     </div>
     <button class="btn small" id="dvBtn">Lançar dividendo</button>
     <div id="dvMsg" class="msg"></div>
-    <div class="hint">Dividendos e JCP já pagos são detectados e lançados aqui automaticamente todo dia. Anúncios de pagamentos futuros aparecem como sugestão acima, aguardando sua confirmação.</div>
+    <div class="hint">Dividendos/JCP anunciados são detectados automaticamente todo dia e entram como "A receber" (a data usada é a data-com/ex, não a de pagamento — o dinheiro costuma cair na conta dias/semanas depois). Clique no ✓ na linha quando o pagamento realmente cair na sua conta, pra mover pra "Recebido".</div>
   </div>
 
   <div class="section-title">Movimentações</div>
@@ -584,7 +584,9 @@ function renderDividendos(){
         <td>${r.data ? r.data.split('-').reverse().join('/') : '—'}</td>
         <td>${fmtBRL(r.valor)}</td>
         <td>${r.status==='recebido'?'Recebido':'A receber'}</td>
-        <td>${r.origem==='auto'?'automático':'manual'} <button class="icon-btn del div-remove" data-id="${r.id}" title="Remover">✕</button></td>
+        <td>${r.origem==='auto'?'automático':'manual'}
+          ${r.status!=='recebido'?`<button class="icon-btn confirm-recebido" data-id="${r.id}" title="Marcar como recebido">✓</button>`:''}
+          <button class="icon-btn del div-remove" data-id="${r.id}" title="Remover">✕</button></td>
       `;
       body.appendChild(tr);
     });
@@ -592,6 +594,13 @@ function renderDividendos(){
   body.querySelectorAll('.div-remove').forEach(b=>{
     b.addEventListener('click', ()=>{
       dividendos[activeEnv].registros = dividendos[activeEnv].registros.filter(r=>r.id!==b.dataset.id);
+      renderDividendos(); saveDividendos(activeEnv);
+    });
+  });
+  body.querySelectorAll('.confirm-recebido').forEach(b=>{
+    b.addEventListener('click', ()=>{
+      const r = dividendos[activeEnv].registros.find(x=>x.id===b.dataset.id);
+      if(r) r.status = 'recebido';
       renderDividendos(); saveDividendos(activeEnv);
     });
   });
