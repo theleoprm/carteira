@@ -102,9 +102,13 @@ def montar_texto(linhas):
     return "\n".join(partes)
 
 
+def _clean(v):
+    return v.encode("utf-8").decode("utf-8-sig").strip() if v else v
+
+
 def enviar_email(texto, data_str):
-    user = os.environ.get("GMAIL_USER")
-    senha = os.environ.get("GMAIL_APP_PASSWORD")
+    user = _clean(os.environ.get("GMAIL_USER"))
+    senha = _clean(os.environ.get("GMAIL_APP_PASSWORD"))
     if not user or not senha:
         print("GMAIL_USER/GMAIL_APP_PASSWORD não configurados — pulando envio de e-mail.")
         return False
