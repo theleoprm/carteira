@@ -4,14 +4,15 @@ Sincroniza dividendos/JCP (com data de pagamento quando disponivel) e eventos
 societarios (desdobramento, grupamento, possivel bonificacao) dos ativos de
 renda variavel. So considera fatos a partir de CUTOFF_DATE.
 
-Fontes:
-- Dividendos de ativos em BRL (Acao/FII/ETF listados na B3): dadosdemercado.com.br
-  (raspagem de HTML, nao e API oficial - pode quebrar se o site mudar de layout).
-  Da data-com, tipo, valor E data de pagamento -> permite confirmar "recebido"
-  automaticamente quando a data de pagamento ja passou.
-- Dividendos de ativos em USD: Yahoo Finance (so tem a data-com/ex, sem data de
-  pagamento) -> fica sempre como "a receber", precisa confirmacao manual.
-- Eventos societarios (splits): Yahoo Finance, para BRL e USD.
+Fontes de dividendos (raspagem de HTML de sites independentes - nao sao APIs
+oficiais, podem quebrar se o layout mudar):
+- Acao BRL (B3): dadosdemercado.com.br -> tem data-com, tipo, valor E pagamento.
+- Acao USD (EUA): statusinvest.com.br/acoes/eua/{ticker} -> idem, com pagamento.
+- FII e ETF (BRL ou USD): nenhuma das duas fontes acima expoe a tabela no HTML
+  server-side para esses tipos (carregam via JS) -> fica no Yahoo Finance, que
+  so tem a data-com/ex, sem data de pagamento. Status sempre "a receber".
+
+Eventos societarios (splits): sempre via Yahoo Finance, para BRL e USD.
 """
 import time
 import uuid
@@ -23,6 +24,7 @@ from common import get_db, HEADERS
 CUTOFF_DATE = "2026-09-01"
 YAHOO_URL = "https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?range=1y&interval=1d&events=div,split"
 DADOS_URL = "https://www.dadosdemercado.com.br/acoes/{ticker}/dividendos"
+STATUSINVEST_EUA_URL = "https://statusinvest.com.br/acoes/eua/{ticker}"
 BROWSER_HEADERS = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0 Safari/537.36"}
 ENVS = ["investimentos", "reserva"]
 _fx_cache = {}
@@ -62,8 +64,16 @@ def br_date_to_iso(d):
     return f"{ano}-{mes}-{dia}"
 
 
+def parse_valor_br(valor_str):
+    valor_str = valor_str.lstrip("*").strip().replace(".", "").replace(",", ".")
+    try:
+        return float(valor_str)
+    except ValueError:
+        return None
+
+
 def fetch_dividends_dadosdemercado(nome):
-    """Lista de {tipo, valor_unit, data_ex, data_pagamento} para um ticker da B3."""
+    """Acoes BRL. Lista de {tipo, valor_unit, data_ex, data_pagamento}."""
     url = DADOS_URL.format(ticker=nome.lower())
     r = requests.get(url, headers=BROWSER_HEADERS, timeout=20)
     r.raise_for_status()
@@ -77,18 +87,39 @@ def fetch_dividends_dadosdemercado(nome):
         if len(cols) < 5:
             continue
         tipo, valor_str, _registro, ex, pagamento = cols[:5]
-        valor_str = valor_str.lstrip("*").strip().replace(".", "").replace(",", ".")
-        try:
-            valor_unit = float(valor_str)
-        except ValueError:
-            continue
+        valor_unit = parse_valor_br(valor_str)
         data_ex = br_date_to_iso(ex)
-        if not data_ex:
+        if valor_unit is None or not data_ex:
             continue
-        resultado.append({
-            "tipo": tipo or "Dividendo", "valor_unit": valor_unit,
-            "data_ex": data_ex, "data_pagamento": br_date_to_iso(pagamento),
-        })
+        resultado.append({"tipo": tipo or "Dividendo", "valor_unit": valor_unit, "data_ex": data_ex, "data_pagamento": br_date_to_iso(pagamento)})
+    return resultado
+
+
+def fetch_dividends_statusinvest_eua(nome):
+    """Acoes USD (EUA). Lista de {tipo, valor_unit, data_ex, data_pagamento}."""
+    url = STATUSINVEST_EUA_URL.format(ticker=nome.lower())
+    r = requests.get(url, headers=BROWSER_HEADERS, timeout=20)
+    r.raise_for_status()
+    soup = BeautifulSoup(r.text, "html.parser")
+    tabela = None
+    for t in soup.find_all("table"):
+        header_text = t.get_text(" ", strip=True).upper()
+        if "DATA EX" in header_text and "PAGAMENTO" in header_text:
+            tabela = t
+            break
+    if not tabela or not tabela.find("tbody"):
+        return []
+    resultado = []
+    for tr in tabela.find("tbody").find_all("tr"):
+        cols = [td.get_text(strip=True) for td in tr.find_all("td")]
+        if len(cols) < 4:
+            continue
+        tipo, ex, pagamento, valor_str = cols[:4]
+        valor_unit = parse_valor_br(valor_str)
+        data_ex = br_date_to_iso(ex)
+        if valor_unit is None or not data_ex:
+            continue
+        resultado.append({"tipo": tipo or "Dividendo", "valor_unit": valor_unit, "data_ex": data_ex, "data_pagamento": br_date_to_iso(pagamento)})
     return resultado
 
 
@@ -118,56 +149,68 @@ def process_env(db, env, hoje_str):
     div_changed = False
     mov_changed = False
 
+    def registrar_com_pagamento(nome, divs, fonte):
+        nonlocal div_changed, mov_changed
+        qtd_item = next(i.get("qtd", 0) for i in items if i["nome"] == nome)
+        for d in divs:
+            if d["data_ex"] < CUTOFF_DATE or (nome, d["data_ex"]) in existentes_div:
+                continue
+            valor_total = round(d["valor_unit"] * qtd_item, 2)
+            pago = bool(d["data_pagamento"] and d["data_pagamento"] <= hoje_str)
+            registros.append({
+                "id": uuid.uuid4().hex[:8], "ativo": nome, "valor": valor_total,
+                "data": d["data_ex"], "dataPagamento": d["data_pagamento"],
+                "tipo": d["tipo"], "status": "recebido" if pago else "a receber", "origem": "auto",
+            })
+            eventos.append({
+                "id": uuid.uuid4().hex[:8], "tipo": "jcp" if "JCP" in d["tipo"].upper() else "dividendo",
+                "ativo": nome, "data": d["data_ex"],
+                "detalhes": f"{d['tipo']} anunciado ({fonte}): {d['valor_unit']:.4f}/unidade"
+                            + (f" — pagamento previsto {d['data_pagamento']}" if d["data_pagamento"] else ""),
+                "valor": valor_total, "qtdDelta": None, "origem": "auto",
+            })
+            div_changed = mov_changed = True
+            print(f"{env}/{nome}: dividendo novo {d['data_ex']} = R$ {valor_total} (pagamento {d['data_pagamento']})")
+        # enriquece/confirma registros existentes que ainda nao tinham data de pagamento
+        for r in registros:
+            if r.get("ativo") != nome or r.get("origem") != "auto" or r.get("status") == "recebido":
+                continue
+            match = next((d for d in divs if d["data_ex"] == r.get("data")), None)
+            if not match or not match["data_pagamento"]:
+                continue
+            if r.get("dataPagamento") != match["data_pagamento"]:
+                r["dataPagamento"] = match["data_pagamento"]
+                div_changed = True
+            if match["data_pagamento"] <= hoje_str:
+                r["status"] = "recebido"
+                div_changed = True
+                print(f"{env}/{nome}: confirmado recebido automaticamente (pagamento {match['data_pagamento']})")
+
     for item in items:
-        if item.get("classe") not in ("Ação", "FII", "ETF"):
+        classe = item.get("classe")
+        if classe not in ("Ação", "FII", "ETF"):
             continue
         nome = item["nome"]
         moeda = item.get("moeda", "BRL")
         qtd = item.get("qtd", 0)
 
-        # ---- Dividendos ----
-        if moeda != "USD":
+        # ---- Dividendos, por tipo de ativo ----
+        if classe == "Ação" and moeda != "USD":
             try:
                 divs = fetch_dividends_dadosdemercado(nome)
-                for d in divs:
-                    if d["data_ex"] < CUTOFF_DATE:
-                        continue
-                    if (nome, d["data_ex"]) not in existentes_div:
-                        valor_total = round(d["valor_unit"] * qtd, 2)
-                        pago = bool(d["data_pagamento"] and d["data_pagamento"] <= hoje_str)
-                        registros.append({
-                            "id": uuid.uuid4().hex[:8], "ativo": nome, "valor": valor_total,
-                            "data": d["data_ex"], "dataPagamento": d["data_pagamento"],
-                            "tipo": d["tipo"], "status": "recebido" if pago else "a receber", "origem": "auto",
-                        })
-                        eventos.append({
-                            "id": uuid.uuid4().hex[:8], "tipo": "jcp" if "JCP" in d["tipo"].upper() else "dividendo",
-                            "ativo": nome, "data": d["data_ex"],
-                            "detalhes": f"{d['tipo']} anunciado: {d['valor_unit']:.4f}/unidade"
-                                        + (f" — pagamento previsto {d['data_pagamento']}" if d["data_pagamento"] else ""),
-                            "valor": valor_total, "qtdDelta": None, "origem": "auto",
-                        })
-                        div_changed = mov_changed = True
-                        print(f"{env}/{nome}: dividendo novo {d['data_ex']} = R$ {valor_total} (pagamento {d['data_pagamento']})")
-                # Enriquece/confirma registros ja existentes com a data de pagamento
-                for r in registros:
-                    if r.get("ativo") != nome or r.get("origem") != "auto" or r.get("status") == "recebido":
-                        continue
-                    match = next((d for d in divs if d["data_ex"] == r.get("data")), None)
-                    if not match or not match["data_pagamento"]:
-                        continue
-                    if r.get("dataPagamento") != match["data_pagamento"]:
-                        r["dataPagamento"] = match["data_pagamento"]
-                        div_changed = True
-                    if match["data_pagamento"] <= hoje_str:
-                        r["status"] = "recebido"
-                        div_changed = True
-                        print(f"{env}/{nome}: confirmado recebido automaticamente (pagamento {match['data_pagamento']})")
+                registrar_com_pagamento(nome, divs, "dadosdemercado.com.br")
             except Exception as e:
                 print(f"{env}/{nome}: dadosdemercado.com.br falhou ({e})")
             time.sleep(0.4)
+        elif classe == "Ação" and moeda == "USD":
+            try:
+                divs = fetch_dividends_statusinvest_eua(nome)
+                registrar_com_pagamento(nome, divs, "statusinvest.com.br")
+            except Exception as e:
+                print(f"{env}/{nome}: statusinvest.com.br falhou ({e})")
+            time.sleep(0.4)
 
-        # ---- Eventos societarios (splits) + dividendos USD via Yahoo ----
+        # ---- Eventos societarios (splits) + dividendos via Yahoo p/ FII/ETF (sem data de pagamento) ----
         ticker = ticker_for(item)
         try:
             dividends_yahoo, splits = fetch_events_yahoo(ticker)
@@ -176,12 +219,13 @@ def process_env(db, env, hoje_str):
             time.sleep(0.3)
             continue
 
-        if moeda == "USD":
+        if classe in ("FII", "ETF"):
             for ts, d in dividends_yahoo.items():
                 data = unix_to_date(d.get("date", ts))
                 if data < CUTOFF_DATE or (nome, data) in existentes_div:
                     continue
-                valor_total = round(d.get("amount", 0) * usd_brl() * qtd, 2)
+                valor_unit = d.get("amount", 0) * (usd_brl() if moeda == "USD" else 1)
+                valor_total = round(valor_unit * qtd, 2)
                 registros.append({
                     "id": uuid.uuid4().hex[:8], "ativo": nome, "valor": valor_total,
                     "data": data, "dataPagamento": None,
@@ -189,7 +233,7 @@ def process_env(db, env, hoje_str):
                 })
                 eventos.append({
                     "id": uuid.uuid4().hex[:8], "tipo": "dividendo", "ativo": nome, "data": data,
-                    "detalhes": f"Dividendo anunciado (sem data de pagamento disponível): {d.get('amount', 0):.4f}/unidade",
+                    "detalhes": f"Dividendo anunciado (sem data de pagamento disponível): {valor_unit:.4f}/unidade",
                     "valor": valor_total, "qtdDelta": None, "origem": "auto",
                 })
                 div_changed = mov_changed = True
